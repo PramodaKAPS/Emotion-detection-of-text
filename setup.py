@@ -8,11 +8,12 @@ def install_requirements():
         "datasets==2.18.0",
         "huggingface_hub==0.21.2", 
         "fsspec==2023.9.2",
-        "transformers==4.53.2",
+        "transformers==4.41.2",  # Updated for better DeBERTa-v3 compatibility
         "imbalanced-learn",
         "pandas",
         "numpy",
-        "torch"
+        "torch",
+        "sentencepiece"  # Added for DeBERTa-v3 tokenizer support
     ]
     
     for package in packages:
@@ -51,3 +52,4 @@ def setup_cache_directory():
 
 if __name__ == "__main__":
     install_requirements()
+
