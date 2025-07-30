@@ -11,5 +11,5 @@ pyarrow>=15.0.0
 scikit-learn
 matplotlib
 sentencepiece
-protobuf==4.25.4  # Added for DeBERTa-v3 tokenizer conversion support
+protobuf==4.25.4
 
