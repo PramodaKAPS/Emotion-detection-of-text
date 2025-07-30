@@ -76,7 +76,7 @@ def prepare_tokenized_datasets(tokenizer, train_df, valid_df, test_df):
     Tokenize datasets for DeBERTa or similar models. Increased max_length for better context handling.
     """
     def tokenize(batch):
-        return tokenizer(batch["text"], truncation=True, padding=True, max_length=512)  # Increased max_length for more context
+        return tokenizer(batch["text"], truncation=True, padding='max_length', max_length=512)  # Updated to 'max_length' for fixed padding
 
     train_dataset = Dataset.from_pandas(train_df)
     valid_dataset = Dataset.from_pandas(valid_df)
@@ -87,5 +87,4 @@ def prepare_tokenized_datasets(tokenizer, train_df, valid_df, test_df):
     tokenized_test = test_dataset.map(tokenize, batched=True)
 
     return tokenized_train, tokenized_valid, tokenized_test
-
 
