@@ -6,14 +6,14 @@ def install_requirements():
     """Install required packages with compatible versions"""
     packages = [
         "datasets==2.18.0",
-        "huggingface_hub==0.21.2", 
-        "fsspec==2023.9.2",
-        "transformers==4.41.2",  # Updated for better DeBERTa-v3 compatibility
+        "huggingface_hub==0.24.2",  # Updated to resolve conflicts
+        "fsspec==2023.10.0",  # Downgraded for datasets compatibility
+        "transformers==4.41.2",
         "imbalanced-learn",
         "pandas",
         "numpy",
         "torch",
-        "sentencepiece"  # Added for DeBERTa-v3 tokenizer support
+        "sentencepiece"  # For DeBERTa-v3 tokenizer support
     ]
     
     for package in packages:
@@ -52,4 +52,3 @@ def setup_cache_directory():
 
 if __name__ == "__main__":
     install_requirements()
-
