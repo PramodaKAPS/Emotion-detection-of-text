@@ -10,14 +10,26 @@ from torch.utils.data import DataLoader
 def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, selected_indices):
     mapping = {old: new for new, old in enumerate(selected_indices)}
 
-    tokenized_train = tokenized_train.map(lambda x: {"labels": mapping[x["label"]]})  # Renamed to "labels" for model compatibility
-    tokenized_valid = tokenized_valid.map(lambda x: {"labels": mapping[x["label"]]})
-    tokenized_test = tokenized_test.map(lambda x: {"labels": mapping[x["label"]]})
+    # Map labels before setting format (to avoid tensor key errors)
+    def remap_labels(example):
+        if "label" in example:
+            example["labels"] = mapping[example["label"]]
+        return example
 
-    # Set format again after mapping (only relevant columns)
+    tokenized_train = tokenized_train.map(remap_labels)
+    tokenized_valid = tokenized_valid.map(remap_labels)
+    tokenized_test = tokenized_test.map(remap_labels)
+
+    # Now set format to torch for relevant columns (after mapping)
     tokenized_train.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
     tokenized_valid.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
     tokenized_test.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
+
+    # Remove old 'label' column if present
+    if "label" in tokenized_train.column_names:
+        tokenized_train = tokenized_train.remove_columns(["label"])
+        tokenized_valid = tokenized_valid.remove_columns(["label"])
+        tokenized_test = tokenized_test.remove_columns(["label"])
 
     return tokenized_train, tokenized_valid, tokenized_test
 
@@ -29,7 +41,7 @@ def setup_model_and_optimizer(model_name, num_labels, epochs=5, lr=1e-5, cache_d
 
 
 def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokenizer, epochs=5, batch_size=32):  # Added tokenizer param
-    # Use DataCollatorWithPadding for dynamic padding (as fallback)
+    # Use DataCollatorWithPadding as fallback (though fixed padding should suffice)
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     train_dataloader = DataLoader(
@@ -108,4 +120,3 @@ def evaluate_model(model, tokenized_test, tokenizer, batch_size=32):  # Added to
     recall = recall_score(y_true, y_pred, average='weighted')
     
     return {"accuracy": accuracy, "f1": f1, "precision": precision, "recall": recall}
-
