@@ -2,7 +2,7 @@ import os
 import numpy as np
 import torch
 from transformers import AutoModelForSequenceClassification, DataCollatorWithPadding, get_scheduler
-from torch.optim import AdamW  # Updated to torch.optim.AdamW (non-deprecated)
+from torch.optim import AdamW  # Using torch.optim.AdamW (non-deprecated)
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from torch.utils.data import DataLoader
 
@@ -10,9 +10,9 @@ from torch.utils.data import DataLoader
 def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, selected_indices):
     mapping = {old: new for new, old in enumerate(selected_indices)}
 
-    tokenized_train = tokenized_train.map(lambda x: {"label": mapping[x["label"]]})
-    tokenized_valid = tokenized_valid.map(lambda x: {"label": mapping[x["label"]]})
-    tokenized_test = tokenized_test.map(lambda x: {"label": mapping[x["label"]]})
+    tokenized_train = tokenized_train.map(lambda x: {"labels": mapping[x["label"]]})  # Renamed to "labels" for model compatibility
+    tokenized_valid = tokenized_valid.map(lambda x: {"labels": mapping[x["label"]]})
+    tokenized_test = tokenized_test.map(lambda x: {"labels": mapping[x["label"]]})
 
     # Do NOT set format to "torch" here - let DataCollatorWithPadding handle it
     return tokenized_train, tokenized_valid, tokenized_test
@@ -20,13 +20,13 @@ def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, sele
 
 def setup_model_and_optimizer(model_name, num_labels, epochs=5, lr=1e-5, cache_dir=None):
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, cache_dir=cache_dir)
-    optimizer = AdamW(model.parameters(), lr=lr)  # Updated to torch.optim.AdamW
+    optimizer = AdamW(model.parameters(), lr=lr)  # Using torch.optim.AdamW
     return model, optimizer
 
 
-def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, epochs=5, batch_size=32):
-    # Use DataCollatorWithPadding to dynamically pad batches
-    data_collator = DataCollatorWithPadding(tokenizer=model.config.tokenizer)  # Assumes tokenizer is set in model config
+def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokenizer, epochs=5, batch_size=32):  # Added tokenizer param
+    # Use DataCollatorWithPadding for dynamic padding
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     train_dataloader = DataLoader(
         tokenized_train, 
@@ -49,7 +49,7 @@ def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, epochs
     for epoch in range(epochs):
         model.train()
         for batch in train_dataloader:
-            batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}  # Note: Use 'labels' instead of 'label'
+            batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}
             outputs = model(**batch)
             loss = outputs.loss
             loss.backward()
@@ -74,9 +74,9 @@ def save_model_and_tokenizer(model, tokenizer, path):
     print(f"Model saved at {path}")
 
 
-def evaluate_model(model, tokenized_test, batch_size=32):
-    # Use DataCollatorWithPadding for evaluation too
-    data_collator = DataCollatorWithPadding(tokenizer=model.config.tokenizer)
+def evaluate_model(model, tokenized_test, tokenizer, batch_size=32):  # Added tokenizer param
+    # Use DataCollatorWithPadding for evaluation
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     test_dataloader = DataLoader(
         tokenized_test, 
@@ -96,7 +96,7 @@ def evaluate_model(model, tokenized_test, batch_size=32):
         logits = outputs.logits
         predictions = torch.argmax(logits, dim=-1)
         y_pred.extend(predictions.cpu().numpy())
-        y_true.extend(batch["labels"].cpu().numpy())  # Note: Use 'labels' instead of 'label'
+        y_true.extend(batch["labels"].cpu().numpy())
     
     accuracy = accuracy_score(y_true, y_pred)
     f1 = f1_score(y_true, y_pred, average='weighted')
