@@ -1,7 +1,12 @@
-torch
-transformers==4.40.2
 datasets==2.18.0
+huggingface-hub==0.21.4
+transformers==4.40.2
+fsspec==2023.12.2
+tokenizers==0.19.1
+torch
+imbalanced-learn
 pandas
 numpy==1.26.4
-imbalanced-learn==0.13.0
+pyarrow>=15.0.0
 scikit-learn
+matplotlib
