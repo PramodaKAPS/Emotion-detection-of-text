@@ -76,7 +76,7 @@ def prepare_tokenized_datasets(tokenizer, train_df, valid_df, test_df):
     Tokenize datasets for DeBERTa or similar models. Increased max_length for better context handling.
     """
     def tokenize(batch):
-        return tokenizer(batch["text"], truncation=True, padding='max_length', max_length=512)  # Updated to 'max_length' for fixed padding
+        return tokenizer(batch["text"], truncation=True, padding='max_length', max_length=512)  # Fixed padding for consistency
 
     train_dataset = Dataset.from_pandas(train_df)
     valid_dataset = Dataset.from_pandas(valid_df)
@@ -86,13 +86,10 @@ def prepare_tokenized_datasets(tokenizer, train_df, valid_df, test_df):
     tokenized_valid = valid_dataset.map(tokenize, batched=True)
     tokenized_test = test_dataset.map(tokenize, batched=True)
 
-    # Remove raw 'text' column and set format to torch for relevant columns
+    # Remove raw 'text' column (do NOT set format yet - handle in create_torch_datasets)
     tokenized_train = tokenized_train.remove_columns(["text"])
     tokenized_valid = tokenized_valid.remove_columns(["text"])
     tokenized_test = tokenized_test.remove_columns(["text"])
 
-    tokenized_train.set_format("torch", columns=["input_ids", "attention_mask", "label"])
-    tokenized_valid.set_format("torch", columns=["input_ids", "attention_mask", "label"])
-    tokenized_test.set_format("torch", columns=["input_ids", "attention_mask", "label"])
-
     return tokenized_train, tokenized_valid, tokenized_test
+
