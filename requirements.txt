@@ -12,4 +12,4 @@ scikit-learn
 matplotlib
 sentencepiece
 protobuf==4.25.4
-
+tqdm  # Added for progress bars
