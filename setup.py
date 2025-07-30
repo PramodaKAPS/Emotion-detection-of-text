@@ -14,7 +14,7 @@ def install_requirements():
         "numpy",
         "torch",
         "sentencepiece",
-        "protobuf==4.25.4"  # Added for DeBERTa-v3 tokenizer conversion support
+        "protobuf==4.25.4"
     ]
     
     for package in packages:
