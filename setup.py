@@ -14,7 +14,8 @@ def install_requirements():
         "numpy",
         "torch",
         "sentencepiece",
-        "protobuf==4.25.4"
+        "protobuf==4.25.4",
+        "tqdm"  # Added for progress bars
     ]
     
     for package in packages:
@@ -53,4 +54,3 @@ def setup_cache_directory():
 
 if __name__ == "__main__":
     install_requirements()
-
