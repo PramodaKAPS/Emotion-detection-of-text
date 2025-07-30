@@ -1,4 +1,3 @@
-
 import os
 from transformers import AutoTokenizer
 from data_utils import load_and_filter_goemotions, oversample_training_data, prepare_tokenized_datasets
@@ -16,11 +15,11 @@ def train_emotion_model(cache_dir, save_path, selected_emotions, num_train=0, ep
     
     model, optimizer = setup_model_and_optimizer("microsoft/deberta-v3-base", len(selected_emotions), epochs, 1e-5, cache_dir)
     
-    model = compile_and_train(model, optimizer, tokenized_train, tokenized_valid, epochs, batch_size)
+    model = compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokenizer, epochs, batch_size)  # Pass tokenizer
     
     save_model_and_tokenizer(model, tokenizer, save_path)
     
-    metrics = evaluate_model(model, tokenized_test, batch_size)
+    metrics = evaluate_model(model, tokenized_test, tokenizer, batch_size)  # Pass tokenizer
     
     return metrics
 
@@ -67,3 +66,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f" Training failed: {e}")
         raise
+
