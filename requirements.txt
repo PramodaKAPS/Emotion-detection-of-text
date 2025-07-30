@@ -1,0 +1,7 @@
+datasets==2.18.0
+transformers==4.40.2
+tensorflow>=2.10.0
+imbalanced-learn==0.13.0
+pandas
+numpy==1.26.4
+scikit-learn
