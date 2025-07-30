@@ -5,6 +5,7 @@ from transformers import AutoModelForSequenceClassification, DataCollatorWithPad
 from torch.optim import AdamW  # Using torch.optim.AdamW (non-deprecated)
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from torch.utils.data import DataLoader
+from tqdm import tqdm  # Added for progress bars
 
 
 def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, selected_indices):
@@ -64,7 +65,8 @@ def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokeni
 
     for epoch in range(epochs):
         model.train()
-        for batch in train_dataloader:
+        train_progress = tqdm(train_dataloader, desc=f"Epoch {epoch+1} Training")  # Added progress bar
+        for batch in train_progress:
             batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}
             outputs = model(**batch)
             loss = outputs.loss
@@ -72,9 +74,11 @@ def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokeni
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
+            train_progress.set_postfix(loss=loss.item())  # Updates progress bar with current loss
 
         model.eval()
-        for batch in valid_dataloader:
+        val_progress = tqdm(valid_dataloader, desc=f"Epoch {epoch+1} Validation")  # Added progress bar
+        for batch in val_progress:
             batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}
             with torch.no_grad():
                 outputs = model(**batch)
