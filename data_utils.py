@@ -86,5 +86,13 @@ def prepare_tokenized_datasets(tokenizer, train_df, valid_df, test_df):
     tokenized_valid = valid_dataset.map(tokenize, batched=True)
     tokenized_test = test_dataset.map(tokenize, batched=True)
 
-    return tokenized_train, tokenized_valid, tokenized_test
+    # Remove raw 'text' column and set format to torch for relevant columns
+    tokenized_train = tokenized_train.remove_columns(["text"])
+    tokenized_valid = tokenized_valid.remove_columns(["text"])
+    tokenized_test = tokenized_test.remove_columns(["text"])
 
+    tokenized_train.set_format("torch", columns=["input_ids", "attention_mask", "label"])
+    tokenized_valid.set_format("torch", columns=["input_ids", "attention_mask", "label"])
+    tokenized_test.set_format("torch", columns=["input_ids", "attention_mask", "label"])
+
+    return tokenized_train, tokenized_valid, tokenized_test
