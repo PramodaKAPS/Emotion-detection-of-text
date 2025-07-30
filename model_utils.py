@@ -14,7 +14,11 @@ def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, sele
     tokenized_valid = tokenized_valid.map(lambda x: {"labels": mapping[x["label"]]})
     tokenized_test = tokenized_test.map(lambda x: {"labels": mapping[x["label"]]})
 
-    # Do NOT set format to "torch" here - let DataCollatorWithPadding handle it
+    # Set format again after mapping (only relevant columns)
+    tokenized_train.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
+    tokenized_valid.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
+    tokenized_test.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
+
     return tokenized_train, tokenized_valid, tokenized_test
 
 
@@ -25,7 +29,7 @@ def setup_model_and_optimizer(model_name, num_labels, epochs=5, lr=1e-5, cache_d
 
 
 def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokenizer, epochs=5, batch_size=32):  # Added tokenizer param
-    # Use DataCollatorWithPadding for dynamic padding
+    # Use DataCollatorWithPadding for dynamic padding (as fallback)
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     train_dataloader = DataLoader(
@@ -104,3 +108,4 @@ def evaluate_model(model, tokenized_test, tokenizer, batch_size=32):  # Added to
     recall = recall_score(y_true, y_pred, average='weighted')
     
     return {"accuracy": accuracy, "f1": f1, "precision": precision, "recall": recall}
+
