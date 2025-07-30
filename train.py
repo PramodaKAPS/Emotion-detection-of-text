@@ -31,10 +31,10 @@ if __name__ == "__main__":
     
     # Training parameters for improved accuracy
     config = {
-        "num_train": 3000,  # Updated to use only 3000 rows from the dataset
-        "num_epochs": 5,  # Increased epochs
-        "batch_size": 32,
-        "learning_rate": 1e-5  # Lower LR for stability
+        "num_train": 0,  # Updated to use full dataset
+        "num_epochs": 5,
+        "batch_size": 8,  # Kept low to avoid OOM (adjust based on your GPU)
+        "learning_rate": 1e-5
     }
     
     print("🚀 Starting Emotion Detection Training")
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     print(f"   - Cache directory: {cache_dir}")
     print(f"   - Save path: {save_path}")
     print(f"   - Selected emotions: {emotions}")
-    print(f"   - Training samples: {config['num_train']}")
+    print(f"   - Training samples: Full dataset")
     print(f"   - Epochs: {config['num_epochs']}")
     print(f"   - Batch size: {config['batch_size']}")
     print(f"   - Learning rate: {config['learning_rate']}")
