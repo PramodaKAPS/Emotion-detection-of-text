@@ -2,16 +2,16 @@ import os
 import numpy as np
 import torch
 from transformers import AutoModelForSequenceClassification, DataCollatorWithPadding, get_scheduler
-from torch.optim import AdamW  # Using torch.optim.AdamW (non-deprecated)
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from torch.optim import AdamW
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix  # Added for confusion matrix
 from torch.utils.data import DataLoader
-from tqdm import tqdm  # Added for progress bars
+from tqdm import tqdm
+from torch.cuda.amp import autocast, GradScaler
 
 
 def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, selected_indices):
     mapping = {old: new for new, old in enumerate(selected_indices)}
 
-    # Map labels before setting format (to avoid tensor key errors)
     def remap_labels(example):
         if "label" in example:
             example["labels"] = mapping[example["label"]]
@@ -21,12 +21,10 @@ def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, sele
     tokenized_valid = tokenized_valid.map(remap_labels)
     tokenized_test = tokenized_test.map(remap_labels)
 
-    # Now set format to torch for relevant columns (after mapping)
     tokenized_train.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
     tokenized_valid.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
     tokenized_test.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
-    # Remove old 'label' column if present
     if "label" in tokenized_train.column_names:
         tokenized_train = tokenized_train.remove_columns(["label"])
         tokenized_valid = tokenized_valid.remove_columns(["label"])
@@ -37,12 +35,11 @@ def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, sele
 
 def setup_model_and_optimizer(model_name, num_labels, epochs=5, lr=1e-5, cache_dir=None):
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, cache_dir=cache_dir)
-    optimizer = AdamW(model.parameters(), lr=lr)  # Using torch.optim.AdamW
+    optimizer = AdamW(model.parameters(), lr=lr)
     return model, optimizer
 
 
-def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokenizer, epochs=5, batch_size=32):  # Added tokenizer param
-    # Use DataCollatorWithPadding as fallback (though fixed padding should suffice)
+def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokenizer, epochs=5, batch_size=32):
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     train_dataloader = DataLoader(
@@ -62,25 +59,33 @@ def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, tokeni
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+    scaler = GradScaler()
+    accumulation_steps = 4  # Accumulate for effective larger batch size
 
     for epoch in range(epochs):
         model.train()
-        train_progress = tqdm(train_dataloader, desc=f"Epoch {epoch+1} Training")  # Added progress bar
-        for batch in train_progress:
+        train_progress = tqdm(train_dataloader, desc=f"Epoch {epoch+1} Training")
+        optimizer.zero_grad()
+        for step, batch in enumerate(train_progress):
             batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}
-            outputs = model(**batch)
-            loss = outputs.loss
-            loss.backward()
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-            train_progress.set_postfix(loss=loss.item())  # Updates progress bar with current loss
+            with autocast():
+                outputs = model(**batch)
+                loss = outputs.loss / accumulation_steps
+            scaler.scale(loss).backward()
+            
+            if (step + 1) % accumulation_steps == 0:
+                scaler.step(optimizer)
+                scaler.update()
+                scheduler.step()
+                optimizer.zero_grad()
+            
+            train_progress.set_postfix(loss=loss.item())
 
         model.eval()
-        val_progress = tqdm(valid_dataloader, desc=f"Epoch {epoch+1} Validation")  # Added progress bar
+        val_progress = tqdm(valid_dataloader, desc=f"Epoch {epoch+1} Validation")
         for batch in val_progress:
             batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}
-            with torch.no_grad():
+            with torch.no_grad(), autocast():
                 outputs = model(**batch)
 
     return model
@@ -94,8 +99,7 @@ def save_model_and_tokenizer(model, tokenizer, path):
     print(f"Model saved at {path}")
 
 
-def evaluate_model(model, tokenized_test, tokenizer, batch_size=32):  # Added tokenizer param
-    # Use DataCollatorWithPadding for evaluation
+def evaluate_model(model, tokenized_test, tokenizer, batch_size=32):
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     test_dataloader = DataLoader(
@@ -122,5 +126,10 @@ def evaluate_model(model, tokenized_test, tokenizer, batch_size=32):  # Added to
     f1 = f1_score(y_true, y_pred, average='weighted')
     precision = precision_score(y_true, y_pred, average='weighted')
     recall = recall_score(y_true, y_pred, average='weighted')
+    
+    # Added: Compute and print confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    print("\nConfusion Matrix:")
+    print(cm)  # Prints as a 2D array; rows=true labels, columns=predicted labels
     
     return {"accuracy": accuracy, "f1": f1, "precision": precision, "recall": recall}
