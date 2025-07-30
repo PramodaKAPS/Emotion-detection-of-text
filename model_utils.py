@@ -1,7 +1,8 @@
 import os
 import numpy as np
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, AdamW, get_scheduler
+from transformers import AutoModelForSequenceClassification, DataCollatorWithPadding, get_scheduler
+from torch.optim import AdamW  # Updated to torch.optim.AdamW (non-deprecated)
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from torch.utils.data import DataLoader
 
@@ -13,22 +14,31 @@ def create_torch_datasets(tokenized_train, tokenized_valid, tokenized_test, sele
     tokenized_valid = tokenized_valid.map(lambda x: {"label": mapping[x["label"]]})
     tokenized_test = tokenized_test.map(lambda x: {"label": mapping[x["label"]]})
 
-    tokenized_train.set_format("torch")
-    tokenized_valid.set_format("torch")
-    tokenized_test.set_format("torch")
-
+    # Do NOT set format to "torch" here - let DataCollatorWithPadding handle it
     return tokenized_train, tokenized_valid, tokenized_test
 
 
 def setup_model_and_optimizer(model_name, num_labels, epochs=5, lr=1e-5, cache_dir=None):
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, cache_dir=cache_dir)
-    optimizer = AdamW(model.parameters(), lr=lr)
+    optimizer = AdamW(model.parameters(), lr=lr)  # Updated to torch.optim.AdamW
     return model, optimizer
 
 
 def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, epochs=5, batch_size=32):
-    train_dataloader = DataLoader(tokenized_train, shuffle=True, batch_size=batch_size)
-    valid_dataloader = DataLoader(tokenized_valid, batch_size=batch_size)
+    # Use DataCollatorWithPadding to dynamically pad batches
+    data_collator = DataCollatorWithPadding(tokenizer=model.config.tokenizer)  # Assumes tokenizer is set in model config
+
+    train_dataloader = DataLoader(
+        tokenized_train, 
+        shuffle=True, 
+        batch_size=batch_size, 
+        collate_fn=data_collator
+    )
+    valid_dataloader = DataLoader(
+        tokenized_valid, 
+        batch_size=batch_size, 
+        collate_fn=data_collator
+    )
 
     num_training_steps = epochs * len(train_dataloader)
     scheduler = get_scheduler("linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
@@ -39,7 +49,7 @@ def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, epochs
     for epoch in range(epochs):
         model.train()
         for batch in train_dataloader:
-            batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'label']}
+            batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}  # Note: Use 'labels' instead of 'label'
             outputs = model(**batch)
             loss = outputs.loss
             loss.backward()
@@ -49,7 +59,7 @@ def compile_and_train(model, optimizer, tokenized_train, tokenized_valid, epochs
 
         model.eval()
         for batch in valid_dataloader:
-            batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'label']}
+            batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}
             with torch.no_grad():
                 outputs = model(**batch)
 
@@ -65,7 +75,14 @@ def save_model_and_tokenizer(model, tokenizer, path):
 
 
 def evaluate_model(model, tokenized_test, batch_size=32):
-    test_dataloader = DataLoader(tokenized_test, batch_size=batch_size)
+    # Use DataCollatorWithPadding for evaluation too
+    data_collator = DataCollatorWithPadding(tokenizer=model.config.tokenizer)
+
+    test_dataloader = DataLoader(
+        tokenized_test, 
+        batch_size=batch_size, 
+        collate_fn=data_collator
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.eval()
@@ -73,13 +90,13 @@ def evaluate_model(model, tokenized_test, batch_size=32):
     y_true = []
     y_pred = []
     for batch in test_dataloader:
-        batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'label']}
+        batch = {k: v.to(device) for k, v in batch.items() if k in ['input_ids', 'attention_mask', 'labels']}
         with torch.no_grad():
             outputs = model(**batch)
         logits = outputs.logits
         predictions = torch.argmax(logits, dim=-1)
         y_pred.extend(predictions.cpu().numpy())
-        y_true.extend(batch["label"].cpu().numpy())
+        y_true.extend(batch["labels"].cpu().numpy())  # Note: Use 'labels' instead of 'label'
     
     accuracy = accuracy_score(y_true, y_pred)
     f1 = f1_score(y_true, y_pred, average='weighted')
